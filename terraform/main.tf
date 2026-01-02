@@ -1,22 +1,3 @@
-# terraform/main.tf
-# Provider Configuration
-terraform {
-  required_version = "~> 1.5"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-
-  # The backend is configured in backend.tf
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
 # Data source for current AWS account
 data "aws_caller_identity" "current" {}
 
@@ -41,25 +22,22 @@ module "vpc" {
 
 # 2. EKS MODULE: Kubernetes Cluster
 module "eks" {
-  source  = "aws-ia/eks/aws"
-  version = "~> 1.0"
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 20.0"
 
   cluster_name    = var.cluster_name
   cluster_version = "1.28"
 
-  # Link to the VPC
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  # Node Group Configuration
-  node_groups = {
-    managed_ondemand = {
-      node_group_name = "managed_ondemand"
-      instance_types  = ["t3.medium"]
-      min_size        = 2
-      max_size        = 5
-      desired_size    = 2
-      subnet_ids      = module.vpc.private_subnets
+  eks_managed_node_groups = {
+    default = {
+      min_size     = 2
+      max_size     = 5
+      desired_size = 2
+      instance_types = ["t3.medium"]
+      subnet_ids    = module.vpc.private_subnets
     }
   }
 
