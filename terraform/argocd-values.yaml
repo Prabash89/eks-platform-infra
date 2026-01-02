@@ -1,0 +1,8 @@
+# Override default ArgoCD Helm chart values for security
+configs:
+  params:
+    # Disable the default admin password. We'll use IAM or SSO later.
+    server.insecure: false
+server:
+  service:
+    type: LoadBalancer # Creates an ELB to access the ArgoCD UI
