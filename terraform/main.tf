@@ -1,7 +1,11 @@
-# Data source for current AWS account
+########################################
+# AWS Caller Identity
+########################################
 data "aws_caller_identity" "current" {}
 
-# 1. VPC MODULE: Network Foundation
+########################################
+# VPC MODULE – Network Foundation
+########################################
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
@@ -17,52 +21,74 @@ module "vpc" {
   single_nat_gateway   = true
   enable_dns_hostnames = true
 
+  # REQUIRED for Kubernetes LoadBalancers / Ingress
+  public_subnet_tags = {
+    "kubernetes.io/role/elb" = "1"
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1"
+  }
+
   tags = var.tags
 }
 
-# 2. EKS MODULE: Kubernetes Cluster
+########################################
+# EKS MODULE – Kubernetes Cluster
+########################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.27"
+  cluster_version = "1.29"
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  # Enable IRSA (VERY IMPORTANT)
+  enable_irsa = true
+
+  # API access (for CI/CD, CloudShell, local kubectl)
+  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+
+  # Managed Node Group
   eks_managed_node_groups = {
     default = {
-      min_size     = 2
-      max_size     = 5
-      desired_size = 2
+      name           = "default-ng"
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 2
       instance_types = ["t3.medium"]
-      subnet_ids    = module.vpc.private_subnets
+      subnet_ids     = module.vpc.private_subnets
     }
   }
 
   tags = var.tags
 }
 
-# 3. OUTPUTS: Information to access your cluster
+########################################
+# OUTPUTS
+########################################
 output "cluster_name" {
-  description = "The name of the created EKS cluster"
+  description = "EKS cluster name"
   value       = module.eks.cluster_name
 }
 
 output "cluster_endpoint" {
-  description = "The endpoint URL for your EKS cluster API server"
+  description = "EKS API server endpoint"
   value       = module.eks.cluster_endpoint
   sensitive   = true
 }
 
 output "cluster_certificate_authority_data" {
-  description = "The base64-encoded certificate data required to communicate with your cluster"
+  description = "Cluster CA certificate"
   value       = module.eks.cluster_certificate_authority_data
   sensitive   = true
 }
 
 output "vpc_id" {
-  description = "The ID of the created VPC"
+  description = "VPC ID"
   value       = module.vpc.vpc_id
 }
